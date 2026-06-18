@@ -1,5 +1,7 @@
 # Constrained API Rate Limiter
 
+**📦 Source code:** https://github.com/affan00733/constrained-rate-limiter
+
 In-memory, config-driven rate-limiting **middleware** for an HTTP API — built for the
 scenario where one client's automated job consumed ~40% of capacity and degraded service
 for everyone else.
