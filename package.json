@@ -1,0 +1,20 @@
+{
+  "name": "constrained-rate-limiter",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "In-memory, config-driven API rate limiting middleware with live dashboard, Swagger docs, admin API, metrics, and pluggable algorithms.",
+  "main": "src/middleware.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "loadtest": "node test/loadtest.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "swagger-ui-express": "^5.0.1"
+  }
+}

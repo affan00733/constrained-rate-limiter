@@ -1,0 +1,33 @@
+{
+  "_comment": "Same schema as the Node version. Edit and save -> the running server hot-reloads on the next request (mtime check). No code changes or restart.",
+
+  "algorithm": "token-bucket",
+
+  "identification": { "header": "x-api-key", "ipFallback": true },
+
+  "defaultTier": "standard",
+
+  "tiers": {
+    "standard": { "limit": 100, "windowMs": 60000 },
+    "premium":  { "limit": 500, "windowMs": 60000 }
+  },
+
+  "clients": {
+    "demo-standard-key": "standard",
+    "demo-premium-key":  "premium"
+  },
+
+  "methodClasses": { "read": ["GET", "HEAD", "OPTIONS"] },
+  "methodMultipliers": { "read": 1.0, "write": 0.2 },
+
+  "endpointOverrides": [
+    { "method": "POST", "path": "/api/expensive", "limit": 5, "windowMs": 60000 }
+  ],
+
+  "skipPaths": ["/health"],
+  "skipPrefixes": ["/admin"],
+
+  "admin": { "token": "admin-secret-token" },
+
+  "store": { "sweepIntervalMs": 30000, "maxIdleMs": 120000, "maxKeys": 100000 }
+}

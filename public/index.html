@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rate Limiter — Live Dashboard</title>
+<style>
+  :root {
+    --bg:#0b1020; --panel:#141a2e; --panel2:#1b2340; --line:#27304f;
+    --text:#e6ebff; --muted:#8b97c0; --accent:#4f8cff; --good:#27c498;
+    --warn:#ffb454; --bad:#ff5d6c; --premium:#b98bff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); }
+  a { color:var(--accent); }
+  header { display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:16px 22px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:18px; margin:0; letter-spacing:.2px; }
+  header .sub { color:var(--muted); font-size:12.5px; }
+  .pill { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600;
+    border:1px solid var(--line); background:var(--panel2); }
+  .pill.algo { color:var(--accent); border-color:#2c3e74; }
+  .grow { flex:1; }
+  .links a { margin-left:14px; font-size:13px; }
+  main { padding:18px 22px; display:grid; gap:18px; max-width:1280px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; }
+  .stat .v { font-size:26px; font-weight:700; margin-top:4px; }
+  .stat .v.good { color:var(--good);} .stat .v.bad{ color:var(--bad);} .stat .v.warn{color:var(--warn);}
+  .row { display:grid; grid-template-columns:1.15fr 1fr; gap:18px; }
+  @media (max-width:900px){ .row{ grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted);
+    margin:0 0 14px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:0 0 5px; }
+  select, input[type=number], input[type=text] { width:100%; background:var(--panel2);
+    border:1px solid var(--line); color:var(--text); border-radius:9px; padding:9px 11px; font-size:13.5px; }
+  .field { margin-bottom:12px; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  button { cursor:pointer; border:none; border-radius:9px; padding:10px 14px; font-weight:600;
+    font-size:13.5px; color:#fff; background:var(--accent); transition:filter .12s; }
+  button:hover { filter:brightness(1.1); }
+  button.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  button.good { background:var(--good);} button.bad{ background:var(--bad);} button.warn{background:var(--warn); color:#222;}
+  .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .buckets { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .bucket { background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:12px 13px; }
+  .bucket .top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .bucket .cid { font-size:12.5px; font-weight:600; word-break:break-all; }
+  .bucket .scope { color:var(--muted); font-size:11.5px; margin:3px 0 9px; }
+  .bar { height:9px; border-radius:6px; background:#0c1228; overflow:hidden; border:1px solid var(--line); }
+  .bar > div { height:100%; border-radius:6px; transition:width .25s, background .25s; }
+  .bnums { display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .tag { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:6px; text-transform:uppercase; }
+  .tag.standard { background:#22305c; color:#9db8ff; }
+  .tag.premium  { background:#34245c; color:#cdb0ff; }
+  .log { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px;
+    max-height:340px; overflow:auto; }
+  .log .line { display:flex; gap:10px; padding:4px 2px; border-bottom:1px solid #1a2138; white-space:nowrap; }
+  .code { font-weight:700; width:34px; } .code.ok{color:var(--good);} .code.no{color:var(--bad);}
+  .muted { color:var(--muted); }
+  .empty { color:var(--muted); font-size:13px; padding:8px 0; }
+  .toast { position:fixed; bottom:20px; right:20px; background:var(--panel2); border:1px solid var(--line);
+    padding:11px 15px; border-radius:10px; font-size:13px; opacity:0; transform:translateY(8px);
+    transition:.2s; pointer-events:none; }
+  .toast.show { opacity:1; transform:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Rate Limiter <span class="sub">live dashboard</span></h1>
+  <span class="pill algo" id="algoPill">token-bucket</span>
+  <span class="pill" id="conn">connecting…</span>
+  <span class="grow"></span>
+  <span class="links">
+    <a href="/docs" target="_blank">API docs ↗</a>
+    <a href="/metrics" target="_blank">/metrics ↗</a>
+  </span>
+</header>
+
+<main>
+  <!-- metric cards -->
+  <section class="cards">
+    <div class="stat"><div class="k">Total</div><div class="v" id="mTotal">0</div></div>
+    <div class="stat"><div class="k">Allowed</div><div class="v good" id="mAllowed">0</div></div>
+    <div class="stat"><div class="k">Blocked (429)</div><div class="v bad" id="mBlocked">0</div></div>
+    <div class="stat"><div class="k">Block rate</div><div class="v warn" id="mRate">0%</div></div>
+    <div class="stat"><div class="k">Live buckets</div><div class="v" id="mBuckets">0</div></div>
+    <div class="stat"><div class="k">Uptime</div><div class="v" id="mUptime">0s</div></div>
+  </section>
+
+  <div class="row">
+    <!-- traffic generator -->
+    <section class="panel">
+      <h2>Traffic generator</h2>
+      <div class="controls">
+        <div class="field">
+          <label>Client</label>
+          <select id="genClient">
+            <option value="demo-standard-key">standard (100/min)</option>
+            <option value="demo-premium-key">premium (500/min)</option>
+            <option value="">no key → limited by IP</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Request</label>
+          <select id="genAction">
+            <option value="GET /api/items">GET /api/items (read)</option>
+            <option value="POST /api/items">POST /api/items (write)</option>
+            <option value="POST /api/expensive">POST /api/expensive (override 5)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>How many requests: <span id="countLabel">30</span></label>
+        <input type="range" id="genCount" min="1" max="200" value="30" style="width:100%" />
+      </div>
+      <div class="btnrow">
+        <button id="fire">Fire ▶</button>
+        <button class="warn" id="burst">Burst × max</button>
+        <button class="ghost" id="resetMetrics">Reset metrics</button>
+        <button class="ghost bad" id="resetBuckets">Reset all buckets</button>
+      </div>
+    </section>
+
+    <!-- runtime config -->
+    <section class="panel">
+      <h2>Runtime control (admin API · no restart)</h2>
+      <div class="field">
+        <label>Admin token (x-admin-token)</label>
+        <input type="text" id="adminToken" value="admin-secret-token" />
+      </div>
+      <div class="controls">
+        <div class="field">
+          <label>standard limit /min</label>
+          <input type="number" id="tStandard" value="100" min="1" />
+        </div>
+        <div class="field">
+          <label>premium limit /min</label>
+          <input type="number" id="tPremium" value="500" min="1" />
+        </div>
+      </div>
+      <div class="btnrow">
+        <button class="good" id="applyTiers">Apply tier limits</button>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>Algorithm</label>
+        <select id="algoSelect">
+          <option value="token-bucket">token-bucket (burst-tolerant)</option>
+          <option value="sliding-window">sliding-window (smooth)</option>
+        </select>
+      </div>
+      <div class="btnrow"><button id="applyAlgo">Switch algorithm</button></div>
+    </section>
+  </div>
+
+  <!-- live buckets -->
+  <section class="panel">
+    <h2>Live buckets — capacity remaining per (client × scope)</h2>
+    <div class="buckets" id="buckets"><div class="empty">No traffic yet. Fire some requests above.</div></div>
+  </section>
+
+  <div class="row">
+    <!-- event log -->
+    <section class="panel">
+      <h2>Live request log</h2>
+      <div class="log" id="log"><div class="empty">Waiting for requests…</div></div>
+    </section>
+    <!-- top talkers -->
+    <section class="panel">
+      <h2>Top talkers</h2>
+      <div id="top"><div class="empty">No data yet.</div></div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const adminToken = () => $('adminToken').value.trim();
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function fmtUptime(ms) {
+  const s = Math.floor(ms/1000); if (s<60) return s+'s';
+  const m = Math.floor(s/60); if (m<60) return m+'m '+(s%60)+'s'; return Math.floor(m/60)+'h '+(m%60)+'m';
+}
+function barColor(frac) { return frac>0.5 ? 'var(--good)' : frac>0.2 ? 'var(--warn)' : 'var(--bad)'; }
+
+// ── live stream ───────────────────────────────────────────────────────────
+const es = new EventSource('/__ratelimit/stream');
+es.onopen = () => { $('conn').textContent = '● live'; $('conn').style.color = 'var(--good)'; };
+es.onerror = () => { $('conn').textContent = '● reconnecting'; $('conn').style.color = 'var(--bad)'; };
+es.onmessage = (ev) => render(JSON.parse(ev.data));
+
+function render(d) {
+  $('algoPill').textContent = d.algorithm;
+  $('algoSelect').value = d.algorithm;
+  if (d.tiers?.standard) $('tStandard').placeholder = d.tiers.standard.limit;
+  if (d.tiers?.premium) $('tPremium').placeholder = d.tiers.premium.limit;
+
+  const m = d.metrics;
+  $('mTotal').textContent = m.total;
+  $('mAllowed').textContent = m.allowed;
+  $('mBlocked').textContent = m.blocked;
+  $('mRate').textContent = (m.blockRate*100).toFixed(1)+'%';
+  $('mBuckets').textContent = d.buckets.length;
+  $('mUptime').textContent = fmtUptime(m.uptimeMs);
+
+  // buckets
+  const b = $('buckets');
+  if (!d.buckets.length) { b.innerHTML = '<div class="empty">No traffic yet. Fire some requests above.</div>'; }
+  else {
+    b.innerHTML = d.buckets.map((x) => {
+      const frac = x.limit ? Math.max(0, Math.min(1, x.remaining / x.limit)) : 0;
+      const tier = x.tier === 'premium' ? 'premium' : 'standard';
+      return `<div class="bucket">
+        <div class="top"><span class="cid">${x.clientId}</span><span class="tag ${tier}">${x.tier}</span></div>
+        <div class="scope">${x.scope}</div>
+        <div class="bar"><div style="width:${frac*100}%;background:${barColor(frac)}"></div></div>
+        <div class="bnums"><span>${x.remaining} / ${x.limit} left</span><span>idle ${Math.round(x.idleMs/1000)}s</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // event log (newest first)
+  const log = $('log');
+  if (!d.events.length) { log.innerHTML = '<div class="empty">Waiting for requests…</div>'; }
+  else {
+    log.innerHTML = d.events.slice().reverse().map((e) => {
+      const ok = e.status !== 429;
+      const t = new Date(e.ts).toLocaleTimeString();
+      return `<div class="line"><span class="code ${ok?'ok':'no'}">${e.status}</span>
+        <span class="muted">${t}</span><span>${e.method} ${e.path}</span>
+        <span class="muted">${e.clientId}</span><span class="muted">rem ${e.remaining}</span></div>`;
+    }).join('');
+  }
+
+  // top talkers
+  const top = $('top');
+  top.innerHTML = (m.topClients||[]).length
+    ? m.topClients.map((c) => `<div class="line"><span>${c.clientId}</span>
+        <span class="grow"></span><span class="muted">${c.allowed} ok</span>
+        <span class="code no" style="width:auto">${c.blocked} blocked</span></div>`).join('')
+    : '<div class="empty">No data yet.</div>';
+}
+
+// ── traffic generator ─────────────────────────────────────────────────────
+$('genCount').oninput = () => $('countLabel').textContent = $('genCount').value;
+
+async function fireN(n) {
+  const key = $('genClient').value;
+  const [method, path] = $('genAction').value.split(' ');
+  const headers = { 'content-type': 'application/json' };
+  if (key) headers['x-api-key'] = key;
+  const tasks = [];
+  for (let i = 0; i < n; i++) {
+    tasks.push(fetch(path, { method, headers, body: method === 'GET' ? undefined : '{}' }));
+  }
+  const res = await Promise.allSettled(tasks);
+  let ok = 0, blocked = 0;
+  res.forEach((r) => { if (r.status==='fulfilled' && r.value.status===429) blocked++; else ok++; });
+  toast(`Fired ${n}: ${ok} ok, ${blocked} blocked (429)`);
+}
+$('fire').onclick = () => fireN(+$('genCount').value);
+$('burst').onclick = () => fireN(+$('genCount').max);
+
+// ── admin actions ─────────────────────────────────────────────────────────
+async function admin(method, path, body) {
+  const res = await fetch('/admin' + path, {
+    method,
+    headers: { 'content-type': 'application/json', 'x-admin-token': adminToken() },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { toast('Unauthorized — check admin token'); throw new Error('401'); }
+  return res.json();
+}
+$('applyTiers').onclick = async () => {
+  await admin('PATCH', '/tiers/standard', { limit: +$('tStandard').value });
+  await admin('PATCH', '/tiers/premium', { limit: +$('tPremium').value });
+  toast('Tier limits updated live');
+};
+$('applyAlgo').onclick = async () => {
+  await admin('PATCH', '/algorithm', { algorithm: $('algoSelect').value });
+  toast('Algorithm switched (buckets reset)');
+};
+$('resetMetrics').onclick = async () => { await admin('POST', '/metrics/reset'); toast('Metrics reset'); };
+$('resetBuckets').onclick = async () => { await admin('POST', '/reset', {}); toast('All buckets reset'); };
+</script>
+</body>
+</html>
